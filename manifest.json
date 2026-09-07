@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "jordan.build",
+  "name": "Omarchy Build",
+  "version": "0.1.0",
+  "author": "Jordan Partridge",
+  "license": "MIT",
+  "homepage": "https://github.com/jordanpartridge/omarchy-build",
+  "description": "See every AI coding thread on this machine and on Tailscale SSH hosts. Send into a session, restore a chapter, retry. Not a usage meter.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Build",
+    "description": "Live AI sessions: trying, done, next, blocked. Tailscale SSH. Chapter retry.",
+    "category": "AI",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
