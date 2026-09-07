@@ -13,9 +13,16 @@ omarchy plugin enable jordan.build
 
 Plugins run as unsandboxed code inside `omarchy-shell`. Review the tree before enabling. The installer only clones files; it does not run helpers or sudo.
 
-## Status (0.1.0)
+## Status (0.1.2)
 
-The bar panel is a stub. The local daemon (session ingest, REST, Tailscale SSH, send, chapters) is specified in `specs/omarchy-build/spec.md` and is not shipping in this snapshot.
+Bar panel is still demo data. A **loopback** daemon stub ships under `daemon/`:
+
+```bash
+python3 daemon/server.py   # 127.0.0.1:18765
+curl -sS http://127.0.0.1:18765/sessions
+```
+
+`GET /sessions` returns a fixture list (no secrets). Ingest, Tailscale SSH, send, and chapters are specified in `specs/omarchy-build/spec.md` and not in this slice.
 
 v1 target:
 
