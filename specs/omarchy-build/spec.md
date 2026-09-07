@@ -67,3 +67,15 @@ Parents: Omarchy shell plugins (`jordan.build`), cass / OpenSession ingest, hous
 - Chapter tree: git commit in isolated clone vs tarball — prefer git
 - Anomaly thresholds: tune after first week of local summaries; start fail-closed (high confidence only)
 - Lagging-ideas → PFC: digest Need vs dedicated Today section — Prefrontal/Godbot pick when first slice ships
+
+## Pane / workspace map (Jordan Homelab lock 2026-09-06)
+
+Always know what is in **every Thor Hyprland workspace and pane** (title, class, pid, cwd if known, linked AI session id when detectable).
+
+- **Consumer:** Omarchy Build — answer “what’s running where”, resume a session in a specific pane surgically.
+- **Shape:** lightweight **portable** loopback service (Go / Rust / Python / TS — pick one at first slice). Not a Thor-only snowflake; later may sit in **Asgard’s army** of small host agents.
+- **Inputs:** Hyprland (`hyprctl clients/workspaces`), terminal titles (`foot`/`org.omarchy.agent`), optional cass/session file correlation.
+- **API (loopback):** e.g. `GET /panes`, `GET /workspaces`, `GET /sessions/by-pane/:id` — no secrets; fail closed off-host.
+- **Out of scope v1:** remote control of other people’s machines without Tailscale SSH seat; parsing JSONL inside QML.
+
+Done-when (slice): from Omarchy Build demo/API, list all Thor panes with workspace id + whether a grok/agent session is attached.
