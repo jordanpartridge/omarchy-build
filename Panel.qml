@@ -13,14 +13,32 @@ Panel {
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
 
-  // DEMO data until user-local daemon ships
-  readonly property var demoSessions: [
-    { name: "PFC Today UX", host: "thor", state: "trying", summary: "Collapse radar; simplify capture." },
-    { name: "Asgard SessionEnd", host: "odin", state: "blocked", summary: "Solo token stale — needs Jordan." },
-    { name: "Omarchy Build daemon", host: "thor", state: "next", summary: "cass ingest + loopback REST." }
-  ]
+  // Live sessions loaded from the Omarchy‑Build daemon
+  ListModel {
+    id: sessionModel
+  }
   property int selected: 0
-  readonly property var session: demoSessions[selected]
+  // convenience accessor for the currently selected session object
+  function currentSession() {
+    return sessionModel.get(selected) || {}
+  }
+  // Load sessions from the daemon into the ListModel
+  function loadSessions() {
+    const req = new XMLHttpRequest()
+    req.open('GET', 'http://127.0.0.1:18765/sessions')
+    req.onreadystatechange = function() {
+      if (req.readyState === 4 && req.status === 200) {
+        const data = JSON.parse(req.responseText)
+        sessionModel.clear()
+        for (let i = 0; i < data.sessions.length; i++) {
+          sessionModel.append(data.sessions[i])
+        }
+        // reset selection after reload
+        selected = 0
+      }
+    }
+    req.send()
+  }
 
   function open() { root.controller.show() }
   function close() { root.controller.hide() }
@@ -168,7 +186,56 @@ Panel {
           delegate: Button {
             text: modelData.label
             width: (parent.width - Style.space(8)) / 2
-            onClicked: root.demoToast(modelData.label + " · " + (root.session ? root.session.name : ""))
+            onClicked: {
+                // map button ids to daemon endpoints
+                const sid = root.currentSession().id
+                if (!sid) { root.demoToast("No session selected"); return }
+                if (modelData.id === "recall" || modelData.id === "send") {
+                    // for demo we just send a generic message
+                    const payload = {"message": "demo message"}
+                    const req = new XMLHttpRequest()
+                    req.open("POST", `http://127.0.0.1:18765/sessions/${sid}/send`)
+                    req.setRequestHeader('Content-Type', 'application/json')
+                    req.onreadystatechange = function() { if (req.readyState === 4) { root.demoToast(modelData.label + " – " + (req.status===200?"ok":"fail")) } }
+                    req.send(JSON.stringify(payload))
+                } else if (modelData.id === "summarize") {
+                    const req = new XMLHttpRequest()
+                    req.open("POST", `http://127.0.0.1:18765/sessions/${sid}/summarize`)
+                    req.setRequestHeader('Content-Type', 'application/json')
+                    req.onreadystatechange = function() { if (req.readyState === 4) { root.demoToast(modelData.label + " – " + (req.status===200?"ok":"fail")) } }
+                    req.send()
+                } else if (modelData.id === "spawn") {
+                    const payload = {"name": "New demo", "host": "thor", "user": "jordan"}
+                    const req = new XMLHttpRequest()
+                    req.open("POST", `http://127.0.0.1:18765/sessions`)
+                    req.setRequestHeader('Content-Type', 'application/json')
+                    req.onreadystatechange = function() { if (req.readyState === 4 && req.status===201) { root.demoToast("Spawned"); root.loadSessions() } }
+                    req.send(JSON.stringify(payload))
+                } else if (modelData.id === "rollback") {
+                    const req = new XMLHttpRequest()
+                    req.open("POST", `http://127.0.0.1:18765/sessions/${sid}/rollback`)
+                    req.setRequestHeader('Content-Type', 'application/json')
+                    req.onreadystatechange = function() { if (req.readyState === 4) { root.demoToast(modelData.label + " – " + (req.status===200?"ok":"fail")) } }
+                    req.send()
+                } else if (modelData.id === "rollforward") {
+                    const req = new XMLHttpRequest()
+                    req.open("POST", `http://127.0.0.1:18765/sessions/${sid}/rollforward`)
+                    req.setRequestHeader('Content-Type', 'application/json')
+                    req.onreadystatechange = function() { if (req.readyState === 4) { root.demoToast(modelData.label + " – " + (req.status===200?"ok":"fail")) } }
+                    req.send()
+                } else if (modelData.id === "anomaly") {
+                    // simply fetch anomalies and toast count
+                    const req = new XMLHttpRequest()
+                    req.open("GET", `http://127.0.0.1:18765/anomalies`)
+                    req.onreadystatechange = function() { if (req.readyState === 4) { const data = JSON.parse(req.responseText); root.demoToast("Anomalies: " + data.anomalies.length) } }
+                    req.send()
+                } else if (modelData.id === "lagging") {
+                    const req = new XMLHttpRequest()
+                    req.open("GET", `http://127.0.0.1:18765/lagging-ideas`)
+                    req.onreadystatechange = function() { if (req.readyState === 4) { const data = JSON.parse(req.responseText); root.demoToast("Lagging ideas: " + data.ideas.length) } }
+                    req.send()
+                }
+            }
           }
         }
       }
