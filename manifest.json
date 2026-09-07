@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "jordan.build",
   "name": "Omarchy Build",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Jordan Partridge",
   "license": "MIT",
   "homepage": "https://github.com/jordanpartridge/omarchy-build",
-  "description": "Session control plane (demo panel until daemon). Recall/send, local summarize, spawn, rollback/rollforward, anomaly + lagging ideas \u2192 PFC. Not Ollama.",
+  "description": "Session control plane. Loopback GET /sessions stub + demo panel. Not Ollama.",
   "kinds": [
     "bar-widget"
   ],
