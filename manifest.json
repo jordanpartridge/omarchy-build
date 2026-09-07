@@ -2,14 +2,16 @@
   "schemaVersion": 1,
   "id": "jordan.build",
   "name": "Omarchy Build",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Jordan Partridge",
   "license": "MIT",
   "homepage": "https://github.com/jordanpartridge/omarchy-build",
-  "description": "See every AI coding thread on this machine and on Tailscale SSH hosts. Send into a session, restore a chapter, retry. Not a usage meter.",
-  "kinds": ["bar-widget"],
+  "description": "Session control plane (demo panel until daemon). Recall/send, local summarize, spawn, rollback/rollforward, anomaly + lagging ideas \u2192 PFC. Not Ollama.",
+  "kinds": [
+    "bar-widget"
+  ],
   "entryPoints": {
-    "barWidget": "Panel.qml"
+    "barWidget": "BarWidget.qml"
   },
   "barWidget": {
     "displayName": "Build",
