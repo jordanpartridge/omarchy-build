@@ -1,0 +1,18 @@
+{
+  "id": "omarchy-build-restyle-qwen32k-2",
+  "repo": "/home/jordan/Work/die/omarchy-build-restyle",
+  "prompt_file": "specs/omarchy-build-restyle/AGENT_PROMPT.md",
+  "harness": "opencode",
+  "model": "qwen-coder-32k:latest",
+  "test": "bash specs/omarchy-build-restyle/check.sh",
+  "allowlist": [
+    "Panel.qml",
+    "BarWidget.qml",
+    "manifest.json",
+    "specs/omarchy-build-restyle/"
+  ],
+  "forbidden": [
+    "pkexec",
+    "XMLHttpRequest"
+  ]
+}

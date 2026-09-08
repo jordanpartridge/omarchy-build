@@ -1,5 +1,6 @@
 import QtQuick
-import QtQuick.Controls
+import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -9,49 +10,213 @@ Panel {
   ipcTarget: "jordan.build"
   manageIpc: false
 
+  PanelHero {
+    id: hero
+      bar: root.bar
+      barForeground: bar ? bar.foreground : Color.foreground
+      visible: false
+    }
+
   property var anchorItem: null
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
 
-  // Live sessions loaded from the Omarchy‑Build daemon
-  ListModel {
-    id: sessionModel
-  }
+  ListModel { id: sessionModel }
   property int selected: 0
-  // convenience accessor for the currently selected session object
-  function currentSession() {
-    return sessionModel.get(selected) || {}
+  
+  IpcHandler {
+    target: root.ipcTarget
+
+    function open(): void { root.open() }
+    function close(): void { root.close() }
+    function show(): void { root.open() }
+    function hide(): void { root.close() }
+    function toggle(): void { root.toggle() }
   }
-  // Load sessions from the daemon into the ListModel
-  function loadSessions() {
-    const req = new XMLHttpRequest()
-    req.open('GET', 'http://127.0.0.1:18765/sessions')
-    req.onreadystatechange = function() {
-      if (req.readyState === 4 && req.status === 200) {
-        const data = JSON.parse(req.responseText)
-        sessionModel.clear()
-        for (let i = 0; i < data.sessions.length; i++) {
-          sessionModel.append(data.sessions[i])
-        }
-        // reset selection after reload
-        selected = 0
-      }
-    }
-    req.send()
+  property bool daemonUp: false
+  property string statusLine: "Connecting to daemon…"
+  property string pendingKind: ""
+  property string pendingLabel: ""
+  readonly property var session: currentSession()
+
+  function currentSession() {
+    if (selected < 0 || selected >= sessionModel.count) return ({})
+    return sessionModel.get(selected) || ({})
   }
 
-  function open() { root.controller.show() }
+  function applySessions(raw) {
+    var data
+    try { data = JSON.parse(String(raw || "").trim()) } catch (e) {
+      root.daemonUp = false
+      root.statusLine = "Daemon returned invalid JSON"
+      return
+    }
+    var list = data && data.sessions ? data.sessions : []
+    sessionModel.clear()
+    var n = Math.min(list.length, 24)
+    for (var i = 0; i < n; i++) {
+      var s = list[i] || {}
+      sessionModel.append({
+        sid: String(s.id || ""),
+        name: String(s.name || "Unnamed"),
+        host: String(s.host || "?"),
+        sessState: String(s.state || "next"),
+        summary: String(s.summary || ""),
+        live: s.live === true,
+        paneId: String(s.pane_id || "")
+      })
+    }
+    if (root.selected >= sessionModel.count) root.selected = 0
+    root.daemonUp = true
+    var q = (typeof searchField !== "undefined" && searchField) ? String(searchField.text || "").trim() : ""
+    root.statusLine = sessionModel.count + " session" + (sessionModel.count === 1 ? "" : "s")
+      + (q !== "" ? " matching “" + q + "”" : " from daemon")
+  }
+
+  function loadSessions() {
+    if (fetchProc.running) return
+    var q = ""
+    if (typeof searchField !== "undefined" && searchField)
+      q = String(searchField.text || "").trim().slice(0, 80)
+    var url = "http://127.0.0.1:18765/sessions"
+    if (q !== "") url += "?q=" + encodeURIComponent(q)
+    fetchProc.command = ["curl", "-sS", "--max-time", "3", url]
+    fetchProc.running = true
+  }
+
+  function moveSelection(dy) {
+    if (sessionModel.count < 1) return
+    var next = root.selected + dy
+    if (next < 0) next = 0
+    if (next > sessionModel.count - 1) next = sessionModel.count - 1
+    root.selected = next
+    root.ensureVisible()
+  }
+
+  function ensureVisible() {
+    if (typeof sessionFlick === "undefined" || !sessionFlick) return
+    var rowH = Style.space(44)
+    var y = root.selected * rowH
+    if (y < sessionFlick.contentY)
+      sessionFlick.contentY = Math.max(0, y)
+    var viewBottom = sessionFlick.contentY + sessionFlick.height
+    if (y + rowH > viewBottom)
+      sessionFlick.contentY = Math.max(0, y + rowH - sessionFlick.height)
+  }
+
+  function runCurl(kind, label, args) {
+    if (actionProc.running) return
+    root.pendingKind = kind
+    root.pendingLabel = label
+    root.statusLine = label + "…"
+    actionProc.command = args
+    actionProc.running = true
+  }
+
+  function doAction(action) {
+    var sid = String(root.currentSession().sid || "")
+    if (action === "spawn") {
+      runCurl("mutate", "Spawn", ["curl", "-sS", "--max-time", "40", "-H", "Content-Type: application/json", "-d", "{\"cwd\":\"/home/jordan/Work\",\"name\":\"spawn\"}", "http://127.0.0.1:18765/sessions"])
+      return
+    }
+    if (action === "anomaly") {
+      runCurl("anomalies", "Anomalies", ["curl", "-sS", "--max-time", "5", "http://127.0.0.1:18765/anomalies"])
+      return
+    }
+    if (action === "lagging") {
+      runCurl("ideas", "Lagging ideas", ["curl", "-sS", "--max-time", "5", "http://127.0.0.1:18765/lagging-ideas"])
+      return
+    }
+    if (!sid) {
+      root.statusLine = "No session selected"
+      return
+    }
+    if (action === "recall") {
+      var msg = ""
+      if (typeof injectField !== "undefined" && injectField && injectField.text)
+        msg = String(injectField.text).slice(0, 240)
+      if (msg) {
+        runCurl("mutate", "Send", ["curl", "-sS", "--max-time", "10", "-H", "Content-Type: application/json", "-d", JSON.stringify({ message: msg }), "http://127.0.0.1:18765/sessions/" + sid + "/send"])
+      } else {
+        runCurl("mutate", "Recall", ["curl", "-sS", "--max-time", "40", "-X", "POST", "http://127.0.0.1:18765/sessions/" + sid + "/recall"])
+      }
+    } else if (action === "summarize") {
+      runCurl("mutate", "Summarize", ["curl", "-sS", "--max-time", "5", "-X", "POST", "http://127.0.0.1:18765/sessions/" + sid + "/summarize"])
+    } else if (action === "rollback") {
+      runCurl("mutate", "Rollback", ["curl", "-sS", "--max-time", "5", "-X", "POST", "http://127.0.0.1:18765/sessions/" + sid + "/rollback"])
+    } else if (action === "rollforward") {
+      runCurl("mutate", "Rollforward", ["curl", "-sS", "--max-time", "5", "-X", "POST", "http://127.0.0.1:18765/sessions/" + sid + "/rollforward"])
+    }
+  }
+
+  function applyAction(raw) {
+    var kind = root.pendingKind
+    var label = root.pendingLabel
+    var data = {}
+    try { data = JSON.parse(String(raw || "").trim()) } catch (e) { data = {} }
+    if (data.error) {
+      root.statusLine = label + " · " + String(data.error)
+      return
+    }
+    if (kind === "anomalies") {
+      var anomalies = data.anomalies || []
+      root.statusLine = "Anomalies: " + anomalies.length
+    } else if (kind === "ideas") {
+      var ideas = data.ideas || []
+      root.statusLine = "Lagging ideas: " + ideas.length
+    } else if (kind === "mutate") {
+      root.statusLine = String(data.status || label + " ok")
+      if (data.status === "focused" || data.status === "resumed")
+        root.close()
+      else
+        loadSessions()
+    } else {
+      root.statusLine = label + " ok"
+    }
+  }
+
+  function open() {
+    root.controller.show()
+    loadSessions()
+  }
   function close() { root.controller.hide() }
-  function toggle() { opened ? close() : open() }
+  function toggle() { root.opened ? close() : open() }
   function switchPanel(direction) {
     if (root.bar && typeof root.bar.switchPanelFrom === "function")
       return root.bar.switchPanelFrom(root.barIdentity, direction)
     return false
   }
 
-  function demoToast(msg) {
-    if (root.bar && root.bar.run)
-      root.bar.run("omarchy-notification-send " + JSON.stringify("Build demo · " + msg))
+  function setBarForeground(value) {
+    if (root.bar && "barForeground" in root.bar)
+      root.bar.barForeground = value
+  }
+
+  Component.onCompleted: loadSessions()
+
+  Process {
+    id: fetchProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applySessions(text)
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        root.daemonUp = false
+        root.statusLine = "Daemon not running on 127.0.0.1:18765"
+      }
+    }
+  }
+
+  Process {
+    id: actionProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyAction(text)
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) root.statusLine = root.pendingLabel + " failed"
+    }
   }
 
   KeyboardPanel {
@@ -61,20 +226,34 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(420))
-    contentHeight: panel.fittedContentHeight(Style.space(460))
+    centerOnBar: true
+    contentWidth: panel.fittedContentWidth(Style.space(440))
+    contentHeight: panel.fittedContentHeight(Style.space(560))
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      blocked: (typeof searchField !== "undefined" && searchField && searchField.activeFocus)
+               || (typeof injectField !== "undefined" && injectField && injectField.activeFocus)
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      onMoveRequested: function(dx, dy) {
+        if (dy !== 0) root.moveSelection(dy)
+      }
+      onActivateRequested: root.doAction("recall")
+      onTextKey: function(t) {
+        if (t === "/") {
+          if (searchField) searchField.forceActiveFocus()
+          return
+        }
+      }
     }
 
     Column {
+      id: bodyCol
       anchors.fill: parent
       anchors.margins: Style.space(16)
-      spacing: Style.space(10)
+      spacing: Style.space(8)
 
       Row {
         width: parent.width
@@ -83,16 +262,16 @@ Panel {
           text: "Omarchy Build"
           color: Color.foreground
           font.family: Style.font.family
-          font.pixelSize: Style.font.size
+          font.pixelSize: 14
           font.weight: Font.DemiBold
           textFormat: Text.PlainText
         }
         Text {
           anchors.verticalCenter: parent.verticalCenter
-          text: "DEMO"
+          text: root.daemonUp ? "LIVE" : "OFFLINE"
           color: Color.accent
           font.family: Style.font.family
-          font.pixelSize: Style.font.size * 0.85
+          font.pixelSize: 12
           font.weight: Font.Bold
           textFormat: Text.PlainText
         }
@@ -101,16 +280,65 @@ Panel {
       Text {
         width: parent.width
         wrapMode: Text.Wrap
-        text: "Session control plane preview. Daemon not running — actions toast only."
-        color: Qt.darker(Color.foreground, 1.4)
+        text: root.statusLine
+        color: Color.foreground
         font.family: Style.font.family
-        font.pixelSize: Style.font.size * 0.9
+        font.pixelSize: 13
         textFormat: Text.PlainText
       }
 
-      // session list
+      TextField {
+        id: searchField
+        width: parent.width
+        placeholderText: "Search sessions  ·  / to focus  ·  j k to move"
+        maximumLength: 80
+        onTextChanged: searchDebounce.restart()
+        Keys.onEscapePressed: function(event) {
+          if (searchField.text !== "") {
+            searchField.text = ""
+            event.accepted = true
+          } else {
+            keyCatcher.forceActiveFocus()
+            event.accepted = true
+          }
+        }
+        Keys.onReturnPressed: function(event) {
+          keyCatcher.forceActiveFocus()
+          event.accepted = true
+        }
+        Keys.onDownPressed: function(event) {
+          keyCatcher.forceActiveFocus()
+          root.moveSelection(1)
+          event.accepted = true
+        }
+      }
+
+      Timer {
+        id: searchDebounce
+        interval: 220
+        repeat: false
+        onTriggered: root.loadSessions()
+      }
+
+      Flickable {
+        id: sessionFlick
+        width: parent.width
+        height: Style.space(220)
+        clip: true
+        contentWidth: width
+        contentHeight: sessionCol.implicitHeight
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+        interactive: contentHeight > height
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        Column {
+          id: sessionCol
+          width: sessionFlick.width
+          spacing: Style.space(4)
+
       Repeater {
-        model: root.demoSessions
+        model: sessionModel
         delegate: Rectangle {
           width: parent.width
           height: Style.space(44)
@@ -120,53 +348,67 @@ Panel {
           border.width: 1
           MouseArea {
             anchors.fill: parent
-            onClicked: root.selected = index
+            onClicked: {
+              root.selected = index
+            }
           }
           Row {
             anchors.fill: parent
             anchors.margins: Style.space(10)
             spacing: Style.space(10)
             Text {
-              text: modelData.state
+              text: sessState
               color: Color.accent
               font.family: Style.font.family
-              font.pixelSize: Style.font.size * 0.8
+                font.pixelSize: 11
               font.weight: Font.DemiBold
               width: Style.space(64)
               textFormat: Text.PlainText
             }
             Column {
               Text {
-                text: modelData.name
+                text: name
                 color: Color.foreground
                 font.family: Style.font.family
-                font.pixelSize: Style.font.size
+                font.pixelSize: 14
                 textFormat: Text.PlainText
               }
               Text {
-                text: modelData.host + " · " + modelData.summary
-                color: Qt.darker(Color.foreground, 1.5)
+                text: (live ? "herdr " : "") + host + " · " + summary
+                color: Color.foreground
                 font.family: Style.font.family
-                font.pixelSize: Style.font.size * 0.8
+              font.pixelSize: 11
                 textFormat: Text.PlainText
               }
             }
           }
         }
       }
+        }
+      }
 
       Text {
         width: parent.width
         wrapMode: Text.Wrap
-        text: "Selected: " + (session ? session.name : "")
+        text: session && session.name ? session.name : ""
         color: Color.foreground
         font.family: Style.font.family
-        font.pixelSize: Style.font.size
+        font.pixelSize: 14
         font.weight: Font.DemiBold
         textFormat: Text.PlainText
       }
 
-      // control plane actions
+      TextField {
+        id: injectField
+        width: parent.width
+        placeholderText: "Inject line (empty Recall = focus pane)"
+        maximumLength: 240
+        Keys.onEscapePressed: function(event) {
+          keyCatcher.forceActiveFocus()
+          event.accepted = true
+        }
+      }
+
       Grid {
         width: parent.width
         columns: 2
@@ -186,56 +428,7 @@ Panel {
           delegate: Button {
             text: modelData.label
             width: (parent.width - Style.space(8)) / 2
-            onClicked: {
-                // map button ids to daemon endpoints
-                const sid = root.currentSession().id
-                if (!sid) { root.demoToast("No session selected"); return }
-                if (modelData.id === "recall" || modelData.id === "send") {
-                    // for demo we just send a generic message
-                    const payload = {"message": "demo message"}
-                    const req = new XMLHttpRequest()
-                    req.open("POST", `http://127.0.0.1:18765/sessions/${sid}/send`)
-                    req.setRequestHeader('Content-Type', 'application/json')
-                    req.onreadystatechange = function() { if (req.readyState === 4) { root.demoToast(modelData.label + " – " + (req.status===200?"ok":"fail")) } }
-                    req.send(JSON.stringify(payload))
-                } else if (modelData.id === "summarize") {
-                    const req = new XMLHttpRequest()
-                    req.open("POST", `http://127.0.0.1:18765/sessions/${sid}/summarize`)
-                    req.setRequestHeader('Content-Type', 'application/json')
-                    req.onreadystatechange = function() { if (req.readyState === 4) { root.demoToast(modelData.label + " – " + (req.status===200?"ok":"fail")) } }
-                    req.send()
-                } else if (modelData.id === "spawn") {
-                    const payload = {"name": "New demo", "host": "thor", "user": "jordan"}
-                    const req = new XMLHttpRequest()
-                    req.open("POST", `http://127.0.0.1:18765/sessions`)
-                    req.setRequestHeader('Content-Type', 'application/json')
-                    req.onreadystatechange = function() { if (req.readyState === 4 && req.status===201) { root.demoToast("Spawned"); root.loadSessions() } }
-                    req.send(JSON.stringify(payload))
-                } else if (modelData.id === "rollback") {
-                    const req = new XMLHttpRequest()
-                    req.open("POST", `http://127.0.0.1:18765/sessions/${sid}/rollback`)
-                    req.setRequestHeader('Content-Type', 'application/json')
-                    req.onreadystatechange = function() { if (req.readyState === 4) { root.demoToast(modelData.label + " – " + (req.status===200?"ok":"fail")) } }
-                    req.send()
-                } else if (modelData.id === "rollforward") {
-                    const req = new XMLHttpRequest()
-                    req.open("POST", `http://127.0.0.1:18765/sessions/${sid}/rollforward`)
-                    req.setRequestHeader('Content-Type', 'application/json')
-                    req.onreadystatechange = function() { if (req.readyState === 4) { root.demoToast(modelData.label + " – " + (req.status===200?"ok":"fail")) } }
-                    req.send()
-                } else if (modelData.id === "anomaly") {
-                    // simply fetch anomalies and toast count
-                    const req = new XMLHttpRequest()
-                    req.open("GET", `http://127.0.0.1:18765/anomalies`)
-                    req.onreadystatechange = function() { if (req.readyState === 4) { const data = JSON.parse(req.responseText); root.demoToast("Anomalies: " + data.anomalies.length) } }
-                    req.send()
-                } else if (modelData.id === "lagging") {
-                    const req = new XMLHttpRequest()
-                    req.open("GET", `http://127.0.0.1:18765/lagging-ideas`)
-                    req.onreadystatechange = function() { if (req.readyState === 4) { const data = JSON.parse(req.responseText); root.demoToast("Lagging ideas: " + data.ideas.length) } }
-                    req.send()
-                }
-            }
+            onClicked: root.doAction(modelData.id)
           }
         }
       }
