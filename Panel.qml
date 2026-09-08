@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -11,12 +10,29 @@ Panel {
   ipcTarget: "jordan.build"
   manageIpc: false
 
+  PanelHero {
+    id: hero
+      bar: root.bar
+      barForeground: bar ? bar.foreground : Color.foreground
+      visible: false
+    }
+
   property var anchorItem: null
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
 
   ListModel { id: sessionModel }
   property int selected: 0
+  
+  IpcHandler {
+    target: root.ipcTarget
+
+    function open(): void { root.open() }
+    function close(): void { root.close() }
+    function show(): void { root.open() }
+    function hide(): void { root.close() }
+    function toggle(): void { root.toggle() }
+  }
   property bool daemonUp: false
   property string statusLine: "Connecting to daemon…"
   property string pendingKind: ""
@@ -164,11 +180,16 @@ Panel {
     loadSessions()
   }
   function close() { root.controller.hide() }
-  function toggle() { opened ? close() : open() }
+  function toggle() { root.opened ? close() : open() }
   function switchPanel(direction) {
     if (root.bar && typeof root.bar.switchPanelFrom === "function")
       return root.bar.switchPanelFrom(root.barIdentity, direction)
     return false
+  }
+
+  function setBarForeground(value) {
+    if (root.bar && "barForeground" in root.bar)
+      root.bar.barForeground = value
   }
 
   Component.onCompleted: loadSessions()
@@ -241,7 +262,7 @@ Panel {
           text: "Omarchy Build"
           color: Color.foreground
           font.family: Style.font.family
-          font.pixelSize: Style.font.size
+          font.pixelSize: 14
           font.weight: Font.DemiBold
           textFormat: Text.PlainText
         }
@@ -250,7 +271,7 @@ Panel {
           text: root.daemonUp ? "LIVE" : "OFFLINE"
           color: Color.accent
           font.family: Style.font.family
-          font.pixelSize: Style.font.size * 0.85
+          font.pixelSize: 12
           font.weight: Font.Bold
           textFormat: Text.PlainText
         }
@@ -260,9 +281,9 @@ Panel {
         width: parent.width
         wrapMode: Text.Wrap
         text: root.statusLine
-        color: Qt.darker(Color.foreground, 1.4)
+        color: Color.foreground
         font.family: Style.font.family
-        font.pixelSize: Style.font.size * 0.9
+        font.pixelSize: 13
         textFormat: Text.PlainText
       }
 
@@ -329,7 +350,6 @@ Panel {
             anchors.fill: parent
             onClicked: {
               root.selected = index
-              Qt.callLater(function() { root.doAction("recall") })
             }
           }
           Row {
@@ -340,7 +360,7 @@ Panel {
               text: sessState
               color: Color.accent
               font.family: Style.font.family
-              font.pixelSize: Style.font.size * 0.8
+                font.pixelSize: 11
               font.weight: Font.DemiBold
               width: Style.space(64)
               textFormat: Text.PlainText
@@ -350,14 +370,14 @@ Panel {
                 text: name
                 color: Color.foreground
                 font.family: Style.font.family
-                font.pixelSize: Style.font.size
+                font.pixelSize: 14
                 textFormat: Text.PlainText
               }
               Text {
                 text: (live ? "herdr " : "") + host + " · " + summary
-                color: Qt.darker(Color.foreground, 1.5)
+                color: Color.foreground
                 font.family: Style.font.family
-                font.pixelSize: Style.font.size * 0.8
+              font.pixelSize: 11
                 textFormat: Text.PlainText
               }
             }
@@ -370,10 +390,10 @@ Panel {
       Text {
         width: parent.width
         wrapMode: Text.Wrap
-        text: "Selected: " + (session && session.name ? session.name : "")
+        text: session && session.name ? session.name : ""
         color: Color.foreground
         font.family: Style.font.family
-        font.pixelSize: Style.font.size
+        font.pixelSize: 14
         font.weight: Font.DemiBold
         textFormat: Text.PlainText
       }

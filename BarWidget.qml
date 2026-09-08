@@ -51,6 +51,7 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
+    active: root.opened
     tooltipText: "Omarchy Build · session control"
     iconComponent: Component {
       Item {
