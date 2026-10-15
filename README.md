@@ -1,45 +1,101 @@
 # Omarchy Build
 
-See every AI coding thread on this computer and on machines you reach with Tailscale SSH. Send a message into a live session. Restore a chapter and retry.
+Early Omarchy bar plugin. The bar panel shows the session list returned by a loopback daemon on this computer.
 
-This is not a usage meter. The stock Agents widget already shows subscription limits. Omarchy Build is the timeline: what a session is trying to do, what it did, what is next, what is blocked.
+Version 0.1.3 does not read agent transcripts. It does not open a Tailscale SSH session, send a message into a live session, or restore a chapter. That behavior is described as later work in [specs/omarchy-build/spec.md](specs/omarchy-build/spec.md). It is not in this build.
+
+The stock Agents widget remains the usage meter. This plugin does not replace it.
+
+## Status
+
+| | |
+|---|---|
+| Plugin | Bar widget `jordan.build`. A click opens a panel. |
+| Daemon | `GET /health` and `GET /sessions` on `127.0.0.1:18765`. The session list is empty. |
+| Ingest, Tailscale SSH, send, chapters | Not implemented. `POST` returns 501. |
+| Screenshot | None. This panel has not been captured on a running Omarchy bar. |
+
+## Requirements
+
+- Omarchy, with shell plugins, for the bar widget.
+- Python 3.9 or newer for the daemon. The standard library is enough. There are no pip packages.
+
+Installing the plugin does not start the daemon. Start the daemon yourself when you want the panel to get a reply.
 
 ## Install
+
+Omarchy clones this repo and leaves the plugin disabled until you enable it. Read the tree first. Plugins run as unsandboxed code inside `omarchy-shell`. The installer only clones files. It does not run helpers or sudo.
 
 ```bash
 omarchy plugin add https://github.com/jordanpartridge/omarchy-build.git
 omarchy plugin enable jordan.build
 ```
 
-Plugins run as unsandboxed code inside `omarchy-shell`. Review the tree before enabling. The installer only clones files; it does not run helpers or sudo.
+`omarchy plugin add` asks for confirmation before it clones. Pass `--yes` only when you mean to skip that prompt.
 
-## Status (0.1.2)
+The checkout is placed at `~/.config/omarchy/plugins/jordan.build`. Enable places the widget on the right side of the bar.
 
-Bar panel is still demo data. A **loopback** daemon stub ships under `daemon/`:
+To install by hand, clone this repo into that directory, then run:
 
 ```bash
-python3 daemon/server.py   # 127.0.0.1:18765
+omarchy-shell shell rescanPlugins
+omarchy plugin enable jordan.build
+```
+
+## Usage
+
+Click **Build** on the bar. Escape closes the panel. You can also ask the shell to open it:
+
+```bash
+omarchy-shell shell summon jordan.build '{}'
+```
+
+The panel requests `http://127.0.0.1:18765/sessions`. Until the daemon is running, the panel says it is not reachable.
+
+From a checkout of this repo:
+
+```bash
+python3 daemon/server.py
+```
+
+The process binds `127.0.0.1` by default. It also accepts `localhost` and `::1`, and it refuses any other host. Stop it with Ctrl-C. It writes no files, credentials, or units.
+
+```bash
+curl -sS http://127.0.0.1:18765/health
 curl -sS http://127.0.0.1:18765/sessions
 ```
 
-`GET /sessions` returns a fixture list (no secrets). Ingest, Tailscale SSH, send, and chapters are specified in `specs/omarchy-build/spec.md` and not in this slice.
+`GET /sessions` returns:
 
-v1 target:
+```json
+{
+  "sessions": [],
+  "ingest": "not_implemented"
+}
+```
 
-- Read existing session files (Claude Code, Codex, OpenCode, Amp, Grok Build, and friends) — do not invent a seventh transcript format
-- One-click Tailscale: pick a peer and a unix user, `tailscale ssh user@host`
-- `GET /sessions`, `GET /sessions/:id`, `GET /sessions/:id/timeline` on loopback
-- Inject a message into a live session; restore a chapter to retry
-- Open the session in Herdr on that machine
+`POST` returns HTTP 501 and `{"error": "not_implemented"}`.
 
-## Removing
+Move the widget with:
+
+```bash
+omarchy bar move jordan.build --section right
+```
+
+## Test
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+## Remove
 
 ```bash
 omarchy plugin remove jordan.build
 ```
 
-This snapshot writes no state, cache, credentials, units, or hooks. Nothing survives removal except this git checkout if you cloned it yourself outside Omarchy.
+This build writes no state, cache, credentials, units, or hooks. Removing the plugin deletes Omarchy's checkout of it. A clone you made yourself, outside that directory, stays where you put it.
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

@@ -1,26 +1,24 @@
-# Omarchy Build daemon (stub)
+# Daemon
 
-User-local loopback HTTP for the session control plane.
+Early loopback process for the bar panel. It does not read agent transcripts.
 
 ## Run
 
+From the repo root:
+
 ```bash
 python3 daemon/server.py
-# or: python3 daemon/server.py --port 18765
 ```
 
-Binds **127.0.0.1 only** (refuses other hosts). Default port **18765**.
+Default bind is `127.0.0.1:18765`. `localhost` and `::1` are also accepted. Any other host is refused.
 
-## Prove
+## Check
 
 ```bash
-curl -sS http://127.0.0.1:18765/sessions | python3 -m json.tool
 curl -sS http://127.0.0.1:18765/health
+curl -sS http://127.0.0.1:18765/sessions
 ```
 
-## This slice
+`GET /sessions` returns an empty list and `"ingest": "not_implemented"`. `POST` returns 501.
 
-- `GET /sessions` — fixture JSON list (no secrets)
-- `GET /health` / `GET /up` — liveness
-
-Not yet: cass ingest, Tailscale SSH, send, chapters, `/sessions/:id`, timeline.
+Install, the panel, and removal are in the [root README](../README.md).

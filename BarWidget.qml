@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 BarWidget {
@@ -30,6 +31,9 @@ BarWidget {
   function togglePanel() {
     if (panelLoader.item && panelLoader.item.toggle) panelLoader.item.toggle()
   }
+  function toggle() {
+    root.togglePanel()
+  }
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -51,14 +55,14 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    tooltipText: "Omarchy Build · session control"
+    tooltipText: "Omarchy Build (early)"
     iconComponent: Component {
       Item {
         Text {
           anchors.centerIn: parent
-          // brain / build glyph — not ollama robot
+          // Build mark from the bar icon font.
           text: "󰘦"
-          color: root.bar ? root.bar.barForeground : Color.foreground
+          color: root.bar ? root.bar.barForeground : Commons.Color.foreground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.bar.iconFont
           renderType: Text.NativeRendering

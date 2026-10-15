@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "jordan.build",
   "name": "Omarchy Build",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": "Jordan Partridge",
   "license": "MIT",
   "homepage": "https://github.com/jordanpartridge/omarchy-build",
-  "description": "Session control plane. Loopback GET /sessions stub + demo panel. Not Ollama.",
+  "description": "Early Omarchy bar widget. Shows the session list from a loopback daemon that does not read agent transcripts yet.",
   "kinds": [
     "bar-widget"
   ],
@@ -15,7 +15,7 @@
   },
   "barWidget": {
     "displayName": "Build",
-    "description": "Live AI sessions: trying, done, next, blocked. Tailscale SSH. Chapter retry.",
+    "description": "Early. Reports sessions from the local daemon. No transcript ingest yet.",
     "category": "AI",
     "allowMultiple": false,
     "defaultSection": "right"
